@@ -61,3 +61,5 @@ Completed 500 Internal Server Error
 OpenSSL::Cipher::CipherError ():
   lib/gitlab/crypto_helper.rb:27:in 'aes256_gcm_decrypt'
   app/models/concerns/token_authenticatable.rb:40
+```
+
