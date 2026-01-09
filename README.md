@@ -63,3 +63,12 @@ OpenSSL::Cipher::CipherError ():
   app/models/concerns/token_authenticatable.rb:40
 ```
 
+2. GitLab Runner не регистрируется
+При попытке зарегистрировать runner:
+gitlab-runner register \
+  --url https://your-gitlab.com \
+  --registration-token <TOKEN>
+
+# ERROR: Registering runner... failed
+# runner=xxx status=500 Internal Server Error
+
