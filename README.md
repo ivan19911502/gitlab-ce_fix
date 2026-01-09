@@ -70,7 +70,7 @@ gitlab-runner register \
   --registration-token <TOKEN>
 
 ## ERROR: Registering runner... failed
-## runner=xxx status=500 Internal Server Error
+<!-- runner=xxx status=500 Internal Server Error
 💡 Причина
 Токены в БД зашифрованы старым db_key_base, а GitLab пытается расшифровать их новым ключом.
 ```Схема проблемы:
