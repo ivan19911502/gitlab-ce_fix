@@ -4,7 +4,6 @@
 
 [![GitLab Version](https://img.shields.io/badge/GitLab-17.6+-orange)](https://gitlab.com)
 [![Kubernetes](https://img.shields.io/badge/Kubernetes-1.28+-blue)](https://kubernetes.io)
-[![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 
 ## 📋 Содержание
 
