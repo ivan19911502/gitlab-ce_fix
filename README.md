@@ -91,3 +91,130 @@ gitlab-runner register \
 │                 │   (не может расшифровать) │  CipherError │
 └─────────────────┘                           └──────────────┘
 ```
+
+
+🔧 Решение: Sign-up Settings (Error 500)
+Проблемные токены:
+encrypted_ci_jwt_signing_key
+encrypted_ci_job_token_signing_key
+Вариант 1: Не использую CI/CD
+Просто удалите токены (валидаторы пропустят их, если они NULL):
+# Подключаемся к БД
+kubectl exec -it -n gitlab gitlab-0 -- gitlab-rails dbconsole
+UPDATE application_settings 
+SET 
+  encrypted_ci_jwt_signing_key = NULL,
+  encrypted_ci_jwt_signing_key_iv = NULL,
+  encrypted_ci_job_token_signing_key = NULL,
+  encrypted_ci_job_token_signing_key_iv = NULL
+WHERE id = 1;
+
+-- Проверка
+SELECT 
+  encrypted_ci_jwt_signing_key IS NOT NULL as ci_jwt,
+  encrypted_ci_job_token_signing_key IS NOT NULL as ci_job
+FROM application_settings WHERE id = 1;
+
+\q
+# Перезапуск Puma
+kubectl exec -n gitlab gitlab-0 -- gitlab-ctl restart puma
+✅ Готово! Sign-up Settings должны открыться без ошибок.
+Вариант 2: Использую CI/CD
+Удалите старые и создайте новые токены:
+Шаг 1: Удалите старые токены (SQL выше)
+Шаг 2: Перезапустите Puma
+kubectl exec -n gitlab gitlab-0 -- gitlab-ctl restart puma
+sleep 30
+Шаг 3: Создайте новые токены
+kubectl exec -it -n gitlab gitlab-0 -- gitlab-rails runner '
+require "openssl"
+
+puts "=== Создание CI токенов ==="
+
+setting = ApplicationSetting.current
+
+# Генерируем RSA ключи (2048 бит)
+jwt_key = OpenSSL::PKey::RSA.new(2048)
+job_key = OpenSSL::PKey::RSA.new(2048)
+
+# Сохраняем (GitLab автоматически зашифрует текущим db_key_base)
+setting.ci_jwt_signing_key = jwt_key.to_pem
+setting.ci_job_token_signing_key = job_key.to_pem
+
+if setting.save(validate: false)
+  puts "✅ Токены созданы успешно!"
+  
+  # Проверка
+  setting.reload
+  puts "✅ ci_jwt_signing_key: #{setting.ci_jwt_signing_key.bytesize} bytes"
+  puts "✅ ci_job_token_signing_key: #{setting.ci_job_token_signing_key.bytesize} bytes"
+  
+  # Тест валидации
+  setting.signup_enabled = false
+  if setting.valid?
+    puts "✅ Валидация прошла успешно!"
+  end
+else
+  puts "❌ Ошибка сохранения"
+  setting.errors.full_messages.each { |e| puts "  - #{e}" }
+end
+'
+✅ Проверка: Откройте Sign-up Settings - должна работать без ошибок!
+🏃 Решение: GitLab Runner
+Проблемный токен:
+runners_registration_token_encrypted
+Полное решение:
+Шаг 1: Проверка токена
+kubectl exec -it -n gitlab gitlab-0 -- gitlab-rails runner '
+setting = ApplicationSetting.current
+
+enc_value = setting.runners_registration_token_encrypted
+
+if enc_value.present?
+  puts "Токен существует: #{enc_value.bytesize} bytes"
+  
+  begin
+    token = setting.runners_registration_token
+    puts "✅ Токен читается: #{token[0..10]}..."
+  rescue OpenSSL::Cipher::CipherError
+    puts "❌ Токен сломан (зашифрован старым ключом)"
+  end
+else
+  puts "⚪ Токен отсутствует"
+end
+'
+Шаг 2: Удаление старого токена
+kubectl exec -it -n gitlab gitlab-0 -- gitlab-rails dbconsole
+UPDATE application_settings 
+SET runners_registration_token_encrypted = NULL 
+WHERE id = 1;
+
+\q
+Шаг 3: Перезапуск GitLab
+kubectl exec -n gitlab gitlab-0 -- gitlab-ctl restart puma
+sleep 30
+Шаг 4: Создание нового токена
+kubectl exec -it -n gitlab gitlab-0 -- gitlab-rails runner '
+require "securerandom"
+
+setting = ApplicationSetting.current
+
+# Генерируем новый токен (20 символов)
+new_token = Devise.friendly_token(20)
+
+puts "Новый токен: #{new_token}"
+
+# Сохраняем (GitLab автоматически зашифрует)
+setting.runners_registration_token = new_token
+
+if setting.save(validate: false)
+  puts "✅ Токен сохранён и зашифрован!"
+  
+  # Проверка
+  setting.reload
+  decrypted = setting.runners_registration_token
+  puts "✅ Проверка: #{decrypted[0..10]}..."
+else
+  puts "❌ Ошибка сохранения"
+end
+'
