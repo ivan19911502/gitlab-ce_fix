@@ -70,6 +70,7 @@ gitlab-runner register \
   --registration-token <TOKEN>
 
 > ERROR: Registering runner... failed
+
 > runner=xxx status=500 Internal Server Error
 
 💡 Причина
