@@ -37,7 +37,7 @@
 |------|-----------|----------|
 | `encrypted_ci_jwt_signing_key` | RSA ключ для JWT подписей CI | Sign-up Settings Error 500 |
 | `encrypted_ci_job_token_signing_key` | RSA ключ для CI job токенов | Sign-up Settings Error 500 |
-| `runners_registration_token_encrypted` | Токен для регистрации Runner | Runner не регистрируется |
+| `runners_registration_token_encrypted` | Токен для регистрации Runner | Sign-up Settings Error 500 |
 
 ---
 
