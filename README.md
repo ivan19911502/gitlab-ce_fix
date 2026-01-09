@@ -13,10 +13,7 @@
 - [Диагностика: Поиск проблемных токенов](#диагностика-поиск-проблемных-токенов)
 - [Решение: Sign-up Settings (Error 500)](#решение-sign-up-settings-error-500)
 - [Решение: GitLab Runner](#решение-gitlab-runner)
-- [Проверка после исправления](#проверка-после-исправления)
-- [Правильный Backup](#правильный-backup)
-- [Правильное Restore](#правильное-restore)
-- [FAQ](#faq)
+
 
 ---
 
@@ -391,53 +388,37 @@ kubectl exec -n gitlab gitlab-0 -- gitlab-ctl restart puma
 kubectl exec -it -n gitlab gitlab-0 -- gitlab-rails runner '
 require "securerandom"
 
+# Генерируем токен
+token = "GR1348941" + SecureRandom.hex(10)
+puts "Generated token: #{token}"
+
+# Шифруем вручную
+puts "Encrypting token..."
+encrypted = Gitlab::CryptoHelper.aes256_gcm_encrypt(token)
+puts "✅ Encrypted successfully (#{encrypted.length} bytes)"
+
+# Сохраняем в БД НАПРЯМУЮ через SQL, минуя ActiveRecord callbacks
+puts "Saving to database..."
+result = ActiveRecord::Base.connection.execute(
+  "UPDATE application_settings SET runners_registration_token_encrypted = #{ActiveRecord::Base.connection.quote(encrypted)} WHERE id = 1"
+)
+puts "✅ Saved to database"
+
+# Проверяем, что можем прочитать обратно
+puts "Reading back from database..."
 setting = ApplicationSetting.current
+setting.reload
 
-# Генерируем новый токен (20 символов)
-new_token = Devise.friendly_token(20)
-
-puts "=== Создание токена для Runner ==="
-puts "Новый токен: #{new_token}"
-
-# Сохраняем (GitLab автоматически зашифрует текущим db_key_base)
-setting.runners_registration_token = new_token
-
-if setting.save(validate: false)
-  puts "\n✅ Токен сохранён и зашифрован!"
-  
-  # Проверка
-  setting.reload
-  decrypted = setting.runners_registration_token
-  puts "✅ Проверка расшифровки: #{decrypted[0..10]}..."
-  
-  puts "\n" + "="*60
-  puts "📋 Токен для регистрации Runner:"
-  puts "="*60
-  puts decrypted
-  puts "="*60
-  
-  puts "\n💡 Используйте этот токен для регистрации Runner"
-else
-  puts "❌ Ошибка сохранения"
-  setting.errors.full_messages.each { |e| puts "  - #{e}" }
+begin
+  read_token = setting.runners_registration_token
+  puts "✅ SUCCESS! Token readable: #{read_token[0..15]}..."
+rescue => e
+  puts "❌ Error reading: #{e.message}"
 end
 '
 ```
-
-Ожидаемый вывод:
+Шаг 5: Перезапуск GitLab
 ```
-=== Создание токена для Runner ===
-Новый токен: zXyAbC123dEfGhIjK456
-
-✅ Токен сохранён и зашифрован!
-✅ Проверка расшифровки: zXyAbC123d...
-
-============================================================
-📋 Токен для регистрации Runner:
-============================================================
-zXyAbC123dEfGhIjK456
-============================================================
-
-💡 Используйте этот токен для регистрации Runner
+kubectl exec -n gitlab gitlab-0 -- gitlab-ctl restart puma
 ```
 
